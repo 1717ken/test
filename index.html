@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>オリジナルロゴ & グッズ合成サイト (API応答処理改善版)</title> {/* Changed Title */}
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    /* Styles remain the same */
+    body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background-color: #f8fafc; }
+    .file-input-area { border: 2px dashed #cbd5e1; padding: 1.5rem 1rem; text-align: center; background-color: #f1f5f9; border-radius: 0.75rem; cursor: pointer; transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out; min-height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .file-input-area:hover { background-color: #e2e8f0; border-color: #94a3b8; }
+    .file-input-area input[type="file"] { display: none; }
+    .file-input-area .upload-icon svg { width: 36px; height: 36px; margin-bottom: 0.75rem; color: #64748b; }
+    .file-input-area .upload-text { color: #475569; font-size: 0.875rem; }
+    .file-input-area .upload-text-sm { color: #64748b; font-size: 0.75rem; margin-top: 0.25rem; }
+    .canvas-container { border: 1px solid #e2e8f0; border-radius: 0.5rem; overflow: hidden; background-color: #ffffff; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05); }
+    canvas { max-width: 100%; height: auto; display: block; margin: auto; }
+    .preview-canvas { border: 1px solid #e2e8f0; background-color: #f8fafc; border-radius: 0.5rem; margin-top: 1rem; width: 180px; height: 180px; }
+    .gpt-result-canvas { border: 2px solid #e2e8f0; border-radius: 0.5rem; background-color: #ffffff; cursor: pointer; transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
+    .gpt-result-canvas:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.08); }
+    .gpt-result-canvas.selected { border-width: 3px; border-color: #a78bfa; box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.3); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.65rem 1.25rem; border-radius: 0.5rem; font-weight: 500; border: none; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; }
+    .btn svg { width: 1.1em; height: 1.1em; margin-right: 0.5em; }
+    .btn-gradient { background-image: linear-gradient(to right, #7c3aed, #db2777); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .btn-gradient:hover { box-shadow: 0 5px 15px rgba(124, 58, 237, 0.3); filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-secondary { background-color: #64748b; color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .btn-secondary:hover { background-color: #475569; transform: translateY(-1px); }
+    .form-input { border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.6rem 0.8rem; width: 100%; transition: border-color 0.2s ease, box-shadow 0.2s ease; background-color: #f8fafc; }
+    .form-input:focus { border-color: #8b5cf6; background-color: white; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2); outline: none; }
+    .form-textarea { min-height: 80px; }
+    .message-box { margin-top: 1rem; padding: 0.8rem 1rem; border-radius: 0.5rem; text-align: center; font-size: 0.9rem; }
+    .message-box-error { background-color: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    .message-box-info { background-color: #eff6ff; border: 1px solid #bfdbfe; color: #3b82f6; }
+    .loader { border: 4px solid #f3f4f6; border-top: 4px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin-right: 8px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .loading-indicator { display: flex; align-items: center; justify-content: center; color: #4b5563; }
+    
+    /* モバイル対応の追加スタイル */
+    @media (max-width: 640px) {
+      .file-input-area {
+        padding: 1rem 0.75rem;
+        min-height: 120px;
+      }
+      .file-input-area .upload-icon svg {
+        width: 28px;
+        height: 28px;
+      }
+      .preview-canvas {
+        width: 140px;
+        height: 140px;
+      }
+      .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+      }
+      .form-input {
+        font-size: 16px; /* iOSでズームインを防ぐ */
+      }
+      .canvas-container {
+        max-width: 100%;
+      }
+      #productCanvas {
+        width: 100%;
+        height: auto;
+      }
+    }
+    
+    /* タッチ操作のためのスタイル */
+    .touch-handle {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background-color: rgba(139, 92, 246, 0.7);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+    
+    @media (hover: none) and (pointer: coarse) {
+      .touch-handle {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100">
+  <div class="container max-w-4xl mx-auto p-4 md:p-8">
+    <div class="text-center mb-10">
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">オリジナルロゴ & グッズ合成サイト</h1>
+        <p class="text-lg text-purple-700 font-medium">AIで、アイデアをカタチに。オリジナルロゴをグッズへ簡単合成。</p>
+    </div>
+
+    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg mb-10">
+      <h2 class="text-2xl font-semibold text-gray-700 mb-6 text-center border-b pb-3 border-gray-200">STEP1：オリジナルロゴを作成</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div>
+          <label for="existingLogoUploadTrigger" class="block text-lg font-medium text-gray-700 mb-3 text-center">① ベース画像</label>
+          <div id="existingLogoUploadTrigger" class="file-input-area"> <div class="upload-icon"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg> </div> <span class="upload-text block font-medium">画像をドラッグ＆ドロップ</span> <span class="upload-text-sm block">またはクリックして選択</span> <input type="file" id="existingLogoUpload" accept="image/*"> <span id="existingLogoFilename" class="upload-text-sm block mt-2 truncate max-w-full px-2"></span> </div>
+          <canvas id="existingLogoPreview" class="preview-canvas mx-auto block"></canvas>
+        </div>
+        <div>
+          <label for="logoTypeUploadTrigger" class="block text-lg font-medium text-gray-700 mb-3 text-center">② スタイル参考画像</label>
+           <div id="logoTypeUploadTrigger" class="file-input-area"> <div class="upload-icon"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m0-3-3-3m0 0-3 3m3-3v11.25" /></svg> </div> <span class="upload-text block font-medium">画像をドラッグ＆ドロップ</span> <span class="upload-text-sm block">またはクリックして選択</span> <input type="file" id="logoTypeUpload" accept="image/*"> <span id="logoTypeFilename" class="upload-text-sm block mt-2 truncate max-w-full px-2"></span> </div>
+          <canvas id="logoTypePreview" class="preview-canvas mx-auto block"></canvas>
+        </div>
+      </div>
+      <div class="mb-6"> <label for="designRequestLogo" class="block text-lg font-medium text-gray-700 mb-2">③ デザインのヒント</label> <textarea id="designRequestLogo" class="form-input form-textarea" placeholder="例：未来的な雰囲気で、青と銀色を基調に。" rows="3"></textarea> </div>
+      <div class="mb-6"> <label for="apiKeyInput" class="block text-sm font-medium text-gray-700 mb-1">GPT-4o API KEY <span class="text-red-500">*必須</span></label> <input type="password" id="apiKeyInput" class="form-input" placeholder="sk-...形式のAPI KEYを入力"> <p class="text-xs text-gray-500 mt-1">APIキーはこのブラウザ内でのみ使用され、外部には保存されません。<strong class="text-red-600">ただし、ブラウザから直接APIを呼び出すため、開発者ツール等でキーが閲覧可能になるリスクがあります。</strong></p> </div>
+      <div class="text-center mb-6"> <button type="button" id="callGPT4oBtn" class="btn btn-gradient"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" /></svg> AIロゴ生成 (API呼出) </button> </div>
+      <div id="loadingIndicator" class="loading-indicator mt-4 hidden"> <div class="loader"></div> <span>AIがロゴを生成中です...</span> </div>
+      <div class="mt-10"> <p class="text-center text-xl font-semibold text-gray-700 mb-3">④ AI生成ロゴ一覧</p> <p class="text-center text-sm text-gray-500 mb-5">生成されたロゴをクリックすると、STEP2で使用するロゴとして選択されます。</p> <div id="gptResultsContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 min-h-[180px] bg-slate-50 p-5 rounded-lg border border-slate-200"> <p id="gptPlaceholder" class="text-gray-400 text-center col-span-full self-center">ここにAIが生成したロゴが表示されます。</p> </div> </div>
+      <div id="messageBoxStep1" class="message-box hidden"></div>
+    </div>
+
+
+    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+        <h2 class="text-2xl font-semibold text-gray-700 mb-6 text-center border-b pb-3 border-gray-200">STEP2：グッズにロゴを合成</h2>
+        <p class="text-center text-sm text-gray-500 mb-6">STEP1で選択したロゴ、またはアップロードしたロゴを使ってグッズ画像を作成します。<br><span class="text-sm text-blue-600">（AIによるロゴ生成時、日本語文字は上手く表現されない場合があります。その際は何度か生成をお試しください。）</span></p>
+         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div> <label for="logoUploadTrigger" class="block text-lg font-medium text-gray-700 mb-3 text-center">① ロゴ画像</label> <div id="logoUploadTrigger" class="file-input-area file-input-area-sm py-4"> <span class="upload-text block font-medium">ロゴをアップロード</span> <span class="upload-text-sm block">(任意：STEP1で選択しない場合)</span> <input type="file" id="logoUpload" accept="image/*"> <span id="logoFilename" class="upload-text-sm block mt-2 truncate max-w-full px-2"></span> </div> <img id="step2LogoPreview" class="mt-2 max-h-24 mx-auto hidden rounded-md border border-slate-200" alt="Step 2 Logo Preview"/> </div>
+            <div> <label for="productUploadTrigger" class="block text-lg font-medium text-gray-700 mb-3 text-center">② グッズ画像</label> <div id="productUploadTrigger" class="file-input-area file-input-area-sm py-4"> <span class="upload-text block font-medium">グッズ画像をアップロード</span> <span class="upload-text-sm block">(Tシャツ、マグカップなど)</span> <input type="file" id="productUpload" accept="image/*"> <span id="productFilename" class="upload-text-sm block mt-2 truncate max-w-full px-2"></span> </div> <img id="step2ProductPreview" class="mt-2 max-h-24 mx-auto hidden rounded-md border border-slate-200" alt="Step 2 Product Preview"/> </div>
+         </div>
+         <div class="mb-6"> <label for="designRequestProduct" class="block text-lg font-medium text-gray-700 mb-2">③ 配置や要望 (キーワード入力)</label> <textarea id="designRequestProduct" class="form-input form-textarea" placeholder="例：左上 小さく / 中央 大きく など" rows="2"></textarea> <p class="text-xs text-gray-500 mt-1">簡単なキーワード（左上/右上/中央/小さく/大きく等）で大まかな指定が可能です。プレビュー更新時に反映されます。正確な調整は下のプレビューで行ってください。</p> </div>
+         <div class="mb-4"> <p class="mb-3 text-center text-lg font-medium text-gray-700">④ 合成プレビュー & 調整</p> <p class="mb-3 text-center text-sm text-gray-500">下の画像上でロゴをドラッグして位置を、右下の■をドラッグしてサイズを調整できます。</p> <div class="canvas-container mx-auto max-w-lg relative"> <canvas id="productCanvas" width="500" height="500"></canvas> <div id="touchHandle" class="touch-handle"></div> </div> </div>
+         <div class="text-center mt-6"> <button type="button" id="generateProductBtn" class="btn btn-gradient"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg> プレビュー更新 & 確認 </button> </div>
+        <div id="messageBoxStep2" class="message-box hidden"></div>
+    </div>
+
+  </div>
+
+  <script>
+    // ================================
+    // グローバル変数と要素の取得
+    // ================================
+    // STEP 1 Elements
+    const existingLogoUpload = document.getElementById('existingLogoUpload');
+    const logoTypeUpload = document.getElementById('logoTypeUpload');
+    const existingLogoUploadTrigger = document.getElementById('existingLogoUploadTrigger');
+    const logoTypeUploadTrigger = document.getElementById('logoTypeUploadTrigger');
+    const existingLogoFilename = document.getElementById('existingLogoFilename');
+    const logoTypeFilename = document.getElementById('logoTypeFilename');
+    const existingLogoPreviewCanvas = document.getElementById('existingLogoPreview');
+    const existingLogoPreviewCtx = existingLogoPreviewCanvas.getContext('2d');
+    const logoTypePreviewCanvas = document.getElementById('logoTypePreview');
+    const logoTypePreviewCtx = logoTypePreviewCanvas.getContext('2d');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const designRequestLogo = document.getElementById('designRequestLogo');
+    const callGPT4oBtn = document.getElementById('callGPT4oBtn');
+    const gptResultsContainer = document.getElementById('gptResultsContainer');
+    const gptPlaceholder = document.getElementById('gptPlaceholder');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const messageBoxStep1 = document.getElementById('messageBoxStep1');
+
+    // STEP 2 Elements
+    const logoUpload = document.getElementById('logoUpload');
+    const productUpload = document.getElementById('productUpload');
+    const logoUploadTrigger = document.getElementById('logoUploadTrigger');
+    const productUploadTrigger = document.getElementById('productUploadTrigger');
+    const logoFilename = document.getElementById('logoFilename');
+    const productFilename = document.getElementById('productFilename');
+    const step2LogoPreview = document.getElementById('step2LogoPreview');
+    const step2ProductPreview = document.getElementById('step2ProductPreview');
+    const designRequestProduct = document.getElementById('designRequestProduct'); // Textarea for keywords
+    const generateProductBtn = document.getElementById('generateProductBtn');
+    const productCanvas = document.getElementById('productCanvas');
+    const productCtx = productCanvas.getContext('2d');
+    const messageBoxStep2 = document.getElementById('messageBoxStep2');
+
+    // Image variables
+    let step1_existingLogoImage = null;
+    let step1_logoTypeImage = null;
+    let gptGeneratedImagesDataUrls = [];
+    let selectedGptImageIndex = -1;
+    let productImage = new Image();
+    let uploadedLogoImage = null;
+    let logoToUseOnProduct = null;
+
+    // Overlay state for STEP 2
+    let overlay = { x: 150, y: 150, width: 100, height: 100 };
+    let isDragging = false;
+    let isResizing = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+    const resizeHandleSize = 10;
+
+    // OpenAI API Endpoint
+    const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+    const GPT_RESULT_SIZE = 180;
+
+    // Constants for keyword placement/sizing
+    const PLACEMENT_MARGIN = 20;
+    const SIZE_SMALL = 60;
+    const SIZE_MEDIUM = 120;
+    const SIZE_LARGE = 200;
+
+    // タッチ操作のサポート
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchHandle = document.getElementById('touchHandle');
+
+    // タッチイベントの追加
+    productCanvas.addEventListener('touchstart', handleTouchStart);
+    productCanvas.addEventListener('touchmove', handleTouchMove);
+    productCanvas.addEventListener('touchend', handleTouchEnd);
+
+    function handleTouchStart(e) {
+      e.preventDefault();
+      const rect = productCanvas.getBoundingClientRect();
+      const scaleX = productCanvas.width / rect.width;
+      const scaleY = productCanvas.height / rect.height;
+      
+      touchStartX = (e.touches[0].clientX - rect.left) * scaleX;
+      touchStartY = (e.touches[0].clientY - rect.top) * scaleY;
+      
+      const handleX = overlay.x + overlay.width - resizeHandleSize / 2;
+      const handleY = overlay.y + overlay.height - resizeHandleSize / 2;
+      
+      if (touchStartX >= handleX && touchStartX <= handleX + resizeHandleSize && 
+          touchStartY >= handleY && touchStartY <= handleY + resizeHandleSize) {
+        isResizing = true;
+        isDragging = false;
+      } else if (touchStartX >= overlay.x && touchStartX <= overlay.x + overlay.width && 
+                 touchStartY >= overlay.y && touchStartY <= overlay.y + overlay.height) {
+        isDragging = true;
+        isResizing = false;
+        dragOffsetX = touchStartX - overlay.x;
+        dragOffsetY = touchStartY - overlay.y;
+      } else {
+        isDragging = false;
+        isResizing = false;
+      }
+      
+      // タッチハンドルの表示
+      if (isDragging || isResizing) {
+        touchHandle.style.display = 'block';
+        updateTouchHandlePosition(touchStartX, touchStartY);
+      }
+    }
+
+    function handleTouchMove(e) {
+      e.preventDefault();
+      if (!(productImage.src && productImage.complete)) return;
+      
+      const rect = productCanvas.getBoundingClientRect();
+      const scaleX = productCanvas.width / rect.width;
+      const scaleY = productCanvas.height / rect.height;
+      
+      const x = (e.touches[0].clientX - rect.left) * scaleX;
+      const y = (e.touches[0].clientY - rect.top) * scaleY;
+      
+      if (isDragging) {
+        overlay.x = x - dragOffsetX;
+        overlay.y = y - dragOffsetY;
+        overlay.x = Math.max(0, Math.min(productCanvas.width - overlay.width, overlay.x));
+        overlay.y = Math.max(0, Math.min(productCanvas.height - overlay.height, overlay.y));
+        drawProductCanvas();
+        updateTouchHandlePosition(x, y);
+      } else if (isResizing) {
+        if (!logoToUseOnProduct) return;
+        const newWidth = x - overlay.x;
+        const newHeight = y - overlay.y;
+        overlay.width = Math.max(resizeHandleSize * 2, Math.min(newWidth, productCanvas.width - overlay.x));
+        overlay.height = Math.max(resizeHandleSize * 2, Math.min(newHeight, productCanvas.height - overlay.y));
+        drawProductCanvas();
+        updateTouchHandlePosition(x, y);
+      }
+    }
+
+    function handleTouchEnd(e) {
+      if (isDragging || isResizing) {
+        isDragging = false;
+        isResizing = false;
+        touchHandle.style.display = 'none';
+        console.log("Final Overlay State (Touch):", overlay);
+      }
+    }
+
+    function updateTouchHandlePosition(x, y) {
+      const rect = productCanvas.getBoundingClientRect();
+      const scaleX = rect.width / productCanvas.width;
+      const scaleY = rect.height / productCanvas.height;
+      
+      touchHandle.style.left = `${x * scaleX - 12}px`;
+      touchHandle.style.top = `${y * scaleY - 12}px`;
+    }
+
+    // モバイル向けのキャンバスサイズ調整
+    function adjustCanvasSize() {
+      const container = document.querySelector('.canvas-container');
+      const containerWidth = container.clientWidth;
+      
+      if (containerWidth < 500) {
+        const scale = containerWidth / 500;
+        productCanvas.style.width = `${containerWidth}px`;
+        productCanvas.style.height = `${500 * scale}px`;
+      } else {
+        productCanvas.style.width = '500px';
+        productCanvas.style.height = '500px';
+      }
+      
+      drawProductCanvas();
+    }
+
+    // ウィンドウリサイズ時にキャンバスサイズを調整
+    window.addEventListener('resize', adjustCanvasSize);
+
+    // 初期化時にキャンバスサイズを調整
+    window.addEventListener('load', function() {
+      existingLogoPreviewCtx.fillStyle = "#f8fafc";
+      existingLogoPreviewCtx.fillRect(0, 0, existingLogoPreviewCanvas.width, existingLogoPreviewCanvas.height);
+      logoTypePreviewCtx.fillStyle = "#f8fafc";
+      logoTypePreviewCtx.fillRect(0, 0, logoTypePreviewCanvas.width, logoTypePreviewCanvas.height);
+      adjustCanvasSize();
+      drawProductCanvas();
+    });
+
+    // ================================
+    // Helper Functions (変更なし)
+    // ================================
+    function showMessage(messageBox, message, type = 'error') { messageBox.textContent = message; messageBox.classList.remove('hidden', 'message-box-error', 'message-box-info'); if (type === 'error') { messageBox.classList.add('message-box-error'); } else { messageBox.classList.add('message-box-info'); } messageBox.classList.remove('hidden'); }
+    function hideMessage(messageBox) { messageBox.classList.add('hidden'); messageBox.textContent = ''; messageBox.classList.remove('message-box-error', 'message-box-info'); }
+    function loadImageAndPreview(file, previewCanvas, previewCtx) { return new Promise((resolve, reject) => { if (!file) { reject(new Error("No file provided.")); return; } const reader = new FileReader(); reader.onload = function(event) { const img = new Image(); img.onload = function() { previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height); const aspectRatio = img.width / img.height; let drawWidth = previewCanvas.width; let drawHeight = previewCanvas.height; if (previewCanvas.width / previewCanvas.height > aspectRatio) { drawWidth = previewCanvas.height * aspectRatio; } else { drawHeight = previewCanvas.width / aspectRatio; } const offsetX = (previewCanvas.width - drawWidth) / 2; const offsetY = (previewCanvas.height - drawHeight) / 2; previewCtx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight); resolve(img); }; img.onerror = (err) => reject(new Error("Image load error: " + err)); img.src = event.target.result; }; reader.onerror = (err) => reject(new Error("File read error: " + err)); reader.readAsDataURL(file); }); }
+    function loadImageForImgPreview(file, previewImgElement) { return new Promise((resolve, reject) => { if (!file) { previewImgElement.src = ''; previewImgElement.classList.add('hidden'); reject(new Error("No file provided.")); return; } const reader = new FileReader(); reader.onload = function(event) { previewImgElement.src = event.target.result; previewImgElement.classList.remove('hidden'); resolve(event.target.result); }; reader.onerror = (err) => reject(new Error("File read error: " + err)); reader.readAsDataURL(file); }); }
+
+    // ================================
+    // Event Listeners for File Inputs (変更なし)
+    // ================================
+    existingLogoUploadTrigger.addEventListener('click', () => existingLogoUpload.click());
+    logoTypeUploadTrigger.addEventListener('click', () => logoTypeUpload.click());
+    logoUploadTrigger.addEventListener('click', () => logoUpload.click());
+    productUploadTrigger.addEventListener('click', () => productUpload.click());
+
+    existingLogoUpload.addEventListener('change', async (e) => { hideMessage(messageBoxStep1); existingLogoFilename.textContent = ''; if (!e.target.files || e.target.files.length === 0) { existingLogoPreviewCtx.clearRect(0, 0, existingLogoPreviewCanvas.width, existingLogoPreviewCanvas.height); step1_existingLogoImage = null; return; } const file = e.target.files[0]; existingLogoFilename.textContent = file.name; try { step1_existingLogoImage = await loadImageAndPreview(file, existingLogoPreviewCanvas, existingLogoPreviewCtx); } catch (error) { showMessage(messageBoxStep1, `ベース画像の読込エラー: ${error.message}`); step1_existingLogoImage = null; existingLogoPreviewCtx.clearRect(0, 0, existingLogoPreviewCanvas.width, existingLogoPreviewCanvas.height); existingLogoFilename.textContent = ''; console.error("Error loading existing logo:", error); } });
+    logoTypeUpload.addEventListener('change', async (e) => { hideMessage(messageBoxStep1); logoTypeFilename.textContent = ''; if (!e.target.files || e.target.files.length === 0) { logoTypePreviewCtx.clearRect(0, 0, logoTypePreviewCanvas.width, logoTypePreviewCanvas.height); step1_logoTypeImage = null; return; } const file = e.target.files[0]; logoTypeFilename.textContent = file.name; try { step1_logoTypeImage = await loadImageAndPreview(file, logoTypePreviewCanvas, logoTypePreviewCtx); } catch (error) { showMessage(messageBoxStep1, `スタイル画像の読込エラー: ${error.message}`); step1_logoTypeImage = null; logoTypePreviewCtx.clearRect(0, 0, logoTypePreviewCanvas.width, logoTypePreviewCanvas.height); logoTypeFilename.textContent = ''; console.error("Error loading logotype:", error); } });
+
+    // ================================
+    // STEP1：オリジナルロゴの作成 Logic
+    // ================================
+    // Modified callGPT4oAPI to improve error handling for missing image data
+    async function callGPT4oAPI() {
+      hideMessage(messageBoxStep1); const apiKey = apiKeyInput.value.trim(); const designRequest = designRequestLogo.value;
+      if (!apiKey) { showMessage(messageBoxStep1, 'GPT-4o API KEY を入力してください。'); return; }
+      if (!step1_existingLogoImage || !step1_existingLogoImage.complete || step1_existingLogoImage.naturalWidth === 0) { showMessage(messageBoxStep1, '① ベース画像をアップロードしてください。'); return; }
+      if (!step1_logoTypeImage || !step1_logoTypeImage.complete || step1_logoTypeImage.naturalWidth === 0) { showMessage(messageBoxStep1, '② スタイル参考画像をアップロードしてください。'); return; }
+      console.log('Calling OpenAI API with separate images...'); loadingIndicator.classList.remove('hidden'); callGPT4oBtn.disabled = true; callGPT4oBtn.classList.add('opacity-50', 'cursor-not-allowed'); gptPlaceholder.classList.add('hidden');
+      const getBase64FromImage = (img) => { const canvas = document.createElement('canvas'); canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); return canvas.toDataURL('image/png'); };
+      const baseImageDataBase64 = getBase64FromImage(step1_existingLogoImage); const styleImageDataBase64 = getBase64FromImage(step1_logoTypeImage);
+      const messages = [ { role: "user", content: [ { type: "text", text: `画像1（ベース画像）を基に、画像2（スタイル参考画像）の雰囲気やトーンを取り入れ、以下のテキスト指示を考慮して新しいロゴデザインを生成してください。\n\nテキスト指示:「${designRequest || '特になし'}」\n\n生成するロゴは元の画像1と似たスタイルが良いですが、画像2の要素や雰囲気を創造的に組み合わせてください。背景は透過または白にしてください。` }, { type: "image_url", image_url: { url: baseImageDataBase64, detail: "auto" } }, { type: "image_url", image_url: { url: styleImageDataBase64, detail: "auto" } } ] } ];
+      try {
+        const response = await fetch(OPENAI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` }, body: JSON.stringify({ model: "gpt-4o", messages: messages, max_tokens: 1000 }) });
+        const responseDataText = await response.text();
+        console.log("Raw API Response Text:", responseDataText);
+
+        if (!response.ok) { let errorData; try { errorData = JSON.parse(responseDataText); } catch (e) { errorData = { error: { message: responseDataText } }; } console.error('OpenAI API Error:', errorData); throw new Error(`APIエラー: ${response.status} ${response.statusText} - ${errorData?.error?.message || '詳細不明'}`); }
+
+        const data = JSON.parse(responseDataText);
+        console.log('Parsed API Response Data:', data);
+        console.log('Inspecting choices[0].message.content:', data?.choices?.[0]?.message?.content);
+
+        let generatedImageDataUrl = null;
+        let refusalReason = null; // Variable to store refusal reason
+
+        // --- Improved Image Data Extraction & Refusal Check ---
+        const messageContent = data.choices?.[0]?.message?.content;
+        if (messageContent) {
+             if (typeof messageContent === 'string' && messageContent.startsWith('data:image')) {
+                 generatedImageDataUrl = messageContent;
+                 console.log("Found image data in message.content (string)");
+             } else if (Array.isArray(messageContent)) {
+                 console.log("message.content is an array, searching for image_url or text...");
+                 const imageItem = messageContent.find(item => item.type === 'image_url');
+                 const textItem = messageContent.find(item => item.type === 'text');
+
+                 if (imageItem?.image_url?.url) {
+                     generatedImageDataUrl = imageItem.image_url.url;
+                     console.log("Found image data in message.content[].image_url.url");
+                 } else if (textItem?.text) {
+                     // Check if the text indicates a refusal
+                     const lowerText = textItem.text.toLowerCase();
+                     if (lowerText.includes("cannot fulfill") || lowerText.includes("can't create") || lowerText.includes("unable to create") || lowerText.includes("copyright")) {
+                         refusalReason = textItem.text; // Store the refusal reason
+                         console.warn("API refused image generation:", refusalReason);
+                     } else {
+                         console.log("Found text content, but no image_url:", textItem.text);
+                     }
+                 } else {
+                     console.log("Could not find image_url or relevant text in message.content array items.");
+                 }
+             } else if (typeof messageContent === 'string') {
+                 // Content is a string but not a data URL - likely a refusal or text response
+                 const lowerText = messageContent.toLowerCase();
+                 if (lowerText.includes("cannot fulfill") || lowerText.includes("can't create") || lowerText.includes("unable to create") || lowerText.includes("copyright")) {
+                     refusalReason = messageContent;
+                     console.warn("API refused image generation (plain text):", refusalReason);
+                 } else {
+                     console.log("message.content is a plain string:", messageContent);
+                 }
+             } else {
+                 console.log("message.content is in an unexpected format.");
+             }
+         } else {
+             console.log("Could not find data.choices[0].message.content in the response.");
+         }
+         // --- End Improved Extraction ---
+
+        if (!generatedImageDataUrl) {
+            // Throw specific error if generation was refused
+            if (refusalReason) {
+                throw new Error(`AIが画像の生成を拒否しました。理由: ${refusalReason.substring(0, 100)}${refusalReason.length > 100 ? '...' : ''}`);
+            } else {
+                // Generic error if no image and no clear refusal detected
+                console.error("Final check failed: No generatedImageDataUrl extracted and no refusal reason found. Response content:", messageContent);
+                throw new Error("API応答から画像データを抽出できませんでした。応答形式を確認するか、入力内容を変更してください。");
+            }
+        }
+
+        // --- Display the Generated Image ---
+        const resultCanvas = document.createElement('canvas'); const resultCtx = resultCanvas.getContext('2d'); resultCanvas.width = GPT_RESULT_SIZE; resultCanvas.height = GPT_RESULT_SIZE; resultCanvas.classList.add('gpt-result-canvas'); const generatedImage = new Image();
+        generatedImage.onload = () => { resultCtx.fillStyle = '#ffffff'; resultCtx.fillRect(0, 0, GPT_RESULT_SIZE, GPT_RESULT_SIZE); const aspect = generatedImage.width / generatedImage.height; let w = GPT_RESULT_SIZE; let h = GPT_RESULT_SIZE; if (GPT_RESULT_SIZE / GPT_RESULT_SIZE > aspect) { w = GPT_RESULT_SIZE * aspect; } else { h = GPT_RESULT_SIZE / aspect; } const ox = (GPT_RESULT_SIZE - w) / 2; const oy = (GPT_RESULT_SIZE - h) / 2; resultCtx.drawImage(generatedImage, ox, oy, w, h); const finalDataUrl = resultCanvas.toDataURL('image/png'); const currentIndex = gptGeneratedImagesDataUrls.length; gptGeneratedImagesDataUrls.push(finalDataUrl); resultCanvas.addEventListener('click', () => { selectGptImage(currentIndex, resultCanvas); }); gptResultsContainer.appendChild(resultCanvas); selectGptImage(currentIndex, resultCanvas); hideMessage(messageBoxStep1); showMessage(messageBoxStep1, `AIロゴ生成 ${currentIndex + 1} が完了しました。`, 'info'); };
+        generatedImage.onerror = () => { throw new Error("APIから受信した画像データの読み込みに失敗しました。"); }; generatedImage.src = generatedImageDataUrl;
+      } catch (error) { console.error('Error during GPT-4o API call or processing:', error); showMessage(messageBoxStep1, `エラー: ${error.message}`);
+      } finally { loadingIndicator.classList.add('hidden'); callGPT4oBtn.disabled = false; callGPT4oBtn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+    }
+    function selectGptImage(index, selectedCanvas) { console.log(`GPT Image ${index} selected.`); selectedGptImageIndex = index; const allCanvases = gptResultsContainer.querySelectorAll('.gpt-result-canvas'); allCanvases.forEach(canvas => canvas.classList.remove('selected')); selectedCanvas.classList.add('selected'); if (!uploadedLogoImage) { updateLogoForProduct(); } showMessage(messageBoxStep2, `AI生成ロゴ ${index + 1} を選択しました。`, 'info'); }
+    callGPT4oBtn.addEventListener('click', callGPT4oAPI);
+
+    // ================================
+    // STEP2：グッズにロゴを合成 Logic (変更なし)
+    // ================================
+    function updateOverlayFromText(text) { if (!text || !productCanvas || !logoToUseOnProduct) return false; let positionChanged = false; let sizeChanged = false; const lowerText = text.toLowerCase(); let targetWidth = overlay.width; let targetHeight = overlay.height; const aspectRatio = logoToUseOnProduct.naturalWidth / logoToUseOnProduct.naturalHeight; if (lowerText.includes("小さく") || lowerText.includes("small")) { targetWidth = SIZE_SMALL; targetHeight = targetWidth / aspectRatio; sizeChanged = true; } else if (lowerText.includes("大きく") || lowerText.includes("large") || lowerText.includes("でかく")) { targetWidth = SIZE_LARGE; targetHeight = targetWidth / aspectRatio; if (targetWidth > productCanvas.width - 2 * PLACEMENT_MARGIN) { targetWidth = productCanvas.width - 2 * PLACEMENT_MARGIN; targetHeight = targetWidth / aspectRatio; } if (targetHeight > productCanvas.height - 2 * PLACEMENT_MARGIN) { targetHeight = productCanvas.height - 2 * PLACEMENT_MARGIN; targetWidth = targetHeight * aspectRatio; } sizeChanged = true; } else if (lowerText.includes("中くらい") || lowerText.includes("medium")) { targetWidth = SIZE_MEDIUM; targetHeight = targetWidth / aspectRatio; sizeChanged = true; } if(sizeChanged) { overlay.width = Math.round(targetWidth); overlay.height = Math.round(targetHeight); } let targetX = overlay.x; let targetY = overlay.y; if (lowerText.includes("左上") || lowerText.includes("top left") || lowerText.includes("左上隅")) { targetX = PLACEMENT_MARGIN; targetY = PLACEMENT_MARGIN; positionChanged = true; } else if (lowerText.includes("右上") || lowerText.includes("top right") || lowerText.includes("右上隅")) { targetX = productCanvas.width - overlay.width - PLACEMENT_MARGIN; targetY = PLACEMENT_MARGIN; positionChanged = true; } else if (lowerText.includes("左下") || lowerText.includes("bottom left") || lowerText.includes("左下隅")) { targetX = PLACEMENT_MARGIN; targetY = productCanvas.height - overlay.height - PLACEMENT_MARGIN; positionChanged = true; } else if (lowerText.includes("右下") || lowerText.includes("bottom right") || lowerText.includes("右下隅")) { targetX = productCanvas.width - overlay.width - PLACEMENT_MARGIN; targetY = productCanvas.height - overlay.height - PLACEMENT_MARGIN; positionChanged = true; } else if (lowerText.includes("中央") || lowerText.includes("center") || lowerText.includes("真ん中")) { targetX = (productCanvas.width - overlay.width) / 2; targetY = (productCanvas.height - overlay.height) / 2; positionChanged = true; } else if (lowerText.includes("上") || lowerText.includes("top")) { targetX = (productCanvas.width - overlay.width) / 2; targetY = PLACEMENT_MARGIN; positionChanged = true; } else if (lowerText.includes("下") || lowerText.includes("bottom")) { targetX = (productCanvas.width - overlay.width) / 2; targetY = productCanvas.height - overlay.height - PLACEMENT_MARGIN; positionChanged = true; } else if (lowerText.includes("左") || lowerText.includes("left")) { targetX = PLACEMENT_MARGIN; targetY = (productCanvas.height - overlay.height) / 2; positionChanged = true; } else if (lowerText.includes("右") || lowerText.includes("right")) { targetX = productCanvas.width - overlay.width - PLACEMENT_MARGIN; targetY = (productCanvas.height - overlay.height) / 2; positionChanged = true; } if(positionChanged) { overlay.x = Math.round(targetX); overlay.y = Math.round(targetY); } return positionChanged || sizeChanged; }
+    function updateLogoForProduct() { let newLogoSrc = null; if (uploadedLogoImage) { logoToUseOnProduct = uploadedLogoImage; console.log("Using Step 2 uploaded logo."); if (logoToUseOnProduct.complete) drawProductCanvas(); return; } else if (selectedGptImageIndex !== -1 && gptGeneratedImagesDataUrls[selectedGptImageIndex]) { newLogoSrc = gptGeneratedImagesDataUrls[selectedGptImageIndex]; console.log(`Using selected GPT logo index: ${selectedGptImageIndex}`); } if (newLogoSrc) { if (!logoToUseOnProduct || logoToUseOnProduct.src !== newLogoSrc) { console.log("Updating logoToUseOnProduct with new src:", newLogoSrc.substring(0, 50) + "..."); const tempImage = new Image(); tempImage.onload = () => { console.log("logoToUseOnProduct updated from GPT source."); logoToUseOnProduct = tempImage; drawProductCanvas(); }; tempImage.onerror = (err) => { console.error("Failed to load logoToUseOnProduct from GPT source:", newLogoSrc.substring(0, 50) + "...", err); if (!logoToUseOnProduct) logoToUseOnProduct = null; drawProductCanvas(); }; tempImage.src = newLogoSrc; } else { if (logoToUseOnProduct.complete) drawProductCanvas(); } } else { if (logoToUseOnProduct !== null) { logoToUseOnProduct = null; console.log("No logo available for Step 2."); drawProductCanvas(); } } }
+    logoUpload.addEventListener('change', async (e) => { hideMessage(messageBoxStep2); logoFilename.textContent = ''; if (!e.target.files || e.target.files.length === 0) { uploadedLogoImage = null; logoUploadTrigger.querySelector('.upload-text').textContent = 'ロゴをアップロード'; step2LogoPreview.classList.add('hidden'); updateLogoForProduct(); return; } const file = e.target.files[0]; logoFilename.textContent = file.name; try { const dataUrl = await loadImageForImgPreview(file, step2LogoPreview); const tempImage = new Image(); tempImage.onload = () => { console.log("Step 2 logo uploaded."); uploadedLogoImage = tempImage; logoUploadTrigger.querySelector('.upload-text').textContent = 'ロゴ変更'; updateLogoForProduct(); }; tempImage.onerror = () => { showMessage(messageBoxStep2, "STEP2ロゴ画像の読み込み失敗。"); uploadedLogoImage = null; step2LogoPreview.classList.add('hidden'); logoUploadTrigger.querySelector('.upload-text').textContent = 'ロゴをアップロード'; logoFilename.textContent = ''; updateLogoForProduct(); }; tempImage.src = dataUrl; } catch (error) { showMessage(messageBoxStep2, `STEP2ロゴ処理エラー: ${error.message}`); uploadedLogoImage = null; step2LogoPreview.classList.add('hidden'); logoUploadTrigger.querySelector('.upload-text').textContent = 'ロゴをアップロード'; logoFilename.textContent = ''; updateLogoForProduct(); console.error("Error processing Step 2 logo upload:", error); } });
+    productUpload.addEventListener('change', async (e) => { hideMessage(messageBoxStep2); productFilename.textContent = ''; if (!e.target.files || e.target.files.length === 0) { productImage = new Image(); productUploadTrigger.querySelector('.upload-text').textContent = 'グッズ画像をアップロード'; step2ProductPreview.classList.add('hidden'); drawProductCanvas(); return; } const file = e.target.files[0]; productFilename.textContent = file.name; try { const dataUrl = await loadImageForImgPreview(file, step2ProductPreview); const tempImage = new Image(); tempImage.onload = () => { console.log("Product image loaded."); productImage = tempImage; productUploadTrigger.querySelector('.upload-text').textContent = 'グッズ画像変更'; drawProductCanvas(); }; tempImage.onerror = () => { showMessage(messageBoxStep2, "グッズ画像の読み込み失敗。"); productImage = new Image(); step2ProductPreview.classList.add('hidden'); productUploadTrigger.querySelector('.upload-text').textContent = 'グッズ画像をアップロード'; productFilename.textContent = ''; drawProductCanvas(); }; tempImage.src = dataUrl; } catch (error) { showMessage(messageBoxStep2, `グッズ画像処理エラー: ${error.message}`); productImage = new Image(); step2ProductPreview.classList.add('hidden'); productUploadTrigger.querySelector('.upload-text').textContent = 'グッズ画像をアップロード'; productFilename.textContent = ''; drawProductCanvas(); console.error("Error processing product image upload:", error); } });
+    function drawOverlayGuides() { if (!logoToUseOnProduct && !(productImage.src && productImage.complete)) return; productCtx.save(); productCtx.strokeStyle = 'rgba(239, 68, 68, 0.9)'; productCtx.lineWidth = 2; productCtx.setLineDash([5, 5]); productCtx.strokeRect(overlay.x, overlay.y, overlay.width, overlay.height); productCtx.setLineDash([]); if (logoToUseOnProduct) { productCtx.fillStyle = 'rgba(59, 130, 246, 0.9)'; productCtx.fillRect( overlay.x + overlay.width - resizeHandleSize / 2, overlay.y + overlay.height - resizeHandleSize / 2, resizeHandleSize, resizeHandleSize ); } productCtx.restore(); }
+    function drawProductCanvas() { productCtx.clearRect(0, 0, productCanvas.width, productCanvas.height); productCtx.fillStyle = '#f8fafc'; productCtx.fillRect(0,0, productCanvas.width, productCanvas.height); if (productImage.src && productImage.complete) { const aspect = productImage.width / productImage.height; let w = productCanvas.width; let h = productCanvas.height; if (productCanvas.width / productCanvas.height > aspect) { w = productCanvas.height * aspect; } else { h = productCanvas.width / aspect; } const ox = (productCanvas.width - w) / 2; const oy = (productCanvas.height - h) / 2; productCtx.drawImage(productImage, ox, oy, w, h); } else { productCtx.fillStyle = "#94a3b8"; productCtx.font = "16px 'Noto Sans JP', sans-serif"; productCtx.textAlign = "center"; productCtx.fillText("ここにグッズ画像が表示されます", productCanvas.width / 2, productCanvas.height / 2); } if (logoToUseOnProduct && logoToUseOnProduct.complete) { productCtx.drawImage(logoToUseOnProduct, overlay.x, overlay.y, overlay.width, overlay.height); } else if (!logoToUseOnProduct && productImage.src && productImage.complete) { productCtx.fillStyle = "rgba(0, 0, 0, 0.5)"; productCtx.font = "12px 'Noto Sans JP', sans-serif"; productCtx.textAlign = "center"; const centerX = overlay.x + overlay.width / 2; const centerY = overlay.y + overlay.height / 2; productCtx.fillText("ロゴ未選択", centerX, centerY); } if (productImage.src && productImage.complete) { drawOverlayGuides(); } }
+    generateProductBtn.addEventListener('click', () => { const designRequestText = designRequestProduct.value; console.log('グッズ合成のデザイン要望テキスト:', designRequestText); hideMessage(messageBoxStep2); if (!productImage.src || !productImage.complete) { showMessage(messageBoxStep2, "グッズ画像をアップロードしてください。"); return; } updateLogoForProduct(); if (!logoToUseOnProduct) { showMessage(messageBoxStep2, "合成に使用するロゴが選択されていません。STEP1で生成・選択するか、STEP2でアップロードしてください。"); return; } const updatedByText = updateOverlayFromText(designRequestText); if (updatedByText) { showMessage(messageBoxStep2, 'キーワードに基づいてロゴの位置/サイズを調整しました。プレビューで確認し、必要なら微調整してください。', 'info'); } else { showMessage(messageBoxStep2, 'プレビューを更新しました。テキストによる位置/サイズの自動調整は行われませんでした。', 'info'); } drawProductCanvas(); });
+  </script>
+</body>
+</html>
